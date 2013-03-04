@@ -24,6 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import com.ning.http.util.AsyncHttpProviderUtils;
 
 /**
  * Represents the asynchronous HTTP response callback for an {@link com.ning.http.client.AsyncCompletionHandler}
@@ -189,7 +193,7 @@ public interface Response {
                 Collections.synchronizedList(new ArrayList<HttpResponseBodyPart>());
         private HttpResponseStatus status;
         private HttpResponseHeaders headers;
-
+        private List<Entry<String, List<String>>> cookies;
         /**
          * Accumulate {@link HttpContent} in order to build a {@link Response}
          *
@@ -200,7 +204,21 @@ public interface Response {
             if (httpContent instanceof HttpResponseStatus) {
                 status = (HttpResponseStatus) httpContent;
             } else if (httpContent instanceof HttpResponseHeaders) {
-                headers = (HttpResponseHeaders) httpContent;
+                HttpResponseHeaders inbound= (HttpResponseHeaders) httpContent;
+                
+                if(cookies==null){
+                    cookies=new ArrayList<Map.Entry<String,List<String>>>();
+                }else{  //only actually store on the second pass. Use list as marker
+                    FluentCaseInsensitiveStringsMap headers2 = inbound.getHeaders();
+                    for (Entry<String, List<String>> header : headers2) {
+                        if (header.getKey().equalsIgnoreCase("Set-Cookie")) {
+                            cookies.add(header);
+                        }
+                    }
+                }
+                
+                headers = inbound;
+                
             } else if (httpContent instanceof HttpResponseBodyPart) {
                 bodies.add((HttpResponseBodyPart) httpContent);
             }
@@ -213,6 +231,11 @@ public interface Response {
          * @return a {@link Response} instance
          */
         public Response build() {
+            if(cookies!=null){
+                for (Entry<String, List<String>> cook : this.cookies) {
+                    headers.getHeaders().add(cook.getKey(), cook.getValue());
+                }
+            }
             return status == null ? null : status.provider().prepareResponse(status, headers, bodies);
         }
 

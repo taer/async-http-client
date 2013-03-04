@@ -2043,15 +2043,7 @@ public class NettyAsyncHttpProvider extends SimpleChannelUpstreamHandler impleme
                     }
 
                     log.debug("Redirecting to {}", newUrl);
-                    for (String cookieStr : future.getHttpResponse().getHeaders(HttpHeaders.Names.SET_COOKIE)) {
-                        Cookie c = AsyncHttpProviderUtils.parseCookie(cookieStr);
-                        nBuilder.addOrReplaceCookie(c);
-                    }
-
-                    for (String cookieStr : future.getHttpResponse().getHeaders(HttpHeaders.Names.SET_COOKIE2)) {
-                        Cookie c = AsyncHttpProviderUtils.parseCookie(cookieStr);
-                        nBuilder.addOrReplaceCookie(c);
-                    }
+                    copyCookies(future, nBuilder);
 
                     final String connectionPoolKey = future.getConnectionPoolKeyStrategy().getKey(initialConnectionUri);
                     AsyncCallable ac = new AsyncCallable(future) {
@@ -2079,6 +2071,18 @@ public class NettyAsyncHttpProvider extends SimpleChannelUpstreamHandler impleme
             }
         }
         return false;
+    }
+
+    public void copyCookies(NettyResponseFuture<?> future, final RequestBuilder nBuilder) {
+        for (String cookieStr : future.getHttpResponse().getHeaders(HttpHeaders.Names.SET_COOKIE)) {
+            Cookie c = AsyncHttpProviderUtils.parseCookie(cookieStr);
+            nBuilder.addOrReplaceCookie(c);
+        }
+
+        for (String cookieStr : future.getHttpResponse().getHeaders(HttpHeaders.Names.SET_COOKIE2)) {
+            Cookie c = AsyncHttpProviderUtils.parseCookie(cookieStr);
+            nBuilder.addOrReplaceCookie(c);
+        }
     }
 
     private final class HttpProtocol implements Protocol {
@@ -2185,6 +2189,8 @@ public class NettyAsyncHttpProvider extends SimpleChannelUpstreamHandler impleme
                         final Realm nr = new Realm.RealmBuilder().clone(newRealm)
                                 .setUri(URI.create(request.getUrl()).getPath()).build();
 
+                        copyCookies(future, builder);
+                        handler.onHeadersReceived(responseHeaders);
                         log.debug("Sending authentication to {}", request.getUrl());
                         AsyncCallable ac = new AsyncCallable(future) {
                             public Object call() throws Exception {
